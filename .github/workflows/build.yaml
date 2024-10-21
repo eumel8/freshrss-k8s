@@ -1,0 +1,56 @@
+name: build
+
+on: push
+    
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: MyAlbum/purge-cache@v1
+        with:
+          max-age: 1
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@main
+        with:
+          cosign-release: 'v2.4.0'
+      #- name: Clone upstream
+      #  run: git clone https://github.com/FreshRSS/FreshRSS.git freshrss-upstream
+      - name: Login Build Push FreshRSS
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker login -u="${DOCKER_USERNAME}" -p="${DOCKER_PASSWORD}" ${MTR}
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          docker build -t ghcr.io/${{ github.repository_owner }}/${IMAGE}/${IMAGE}:${VERSION} -f ./Docker/Dockerfile-k8s .
+          docker push ghcr.io/${{ github.repository_owner }}/${IMAGE}/${IMAGE}:${VERSION}
+          docker tag ghcr.io/${{ github.repository_owner }}/${IMAGE}/${IMAGE}:${VERSION} ${MTR}/${REPO}:${VERSION}
+          docker push ${MTR}/${REPO}:${VERSION}
+          cosign sign --key env://COSIGN_KEY --tlog-upload=false ${MTR}/${REPO}:${VERSION}
+          cosign sign --key env://COSIGN_KEY --tlog-upload=false ghcr.io/${{ github.repository_owner }}/${IMAGE}/${IMAGE}:${VERSION}
+        env:
+          COSIGN_KEY: ${{secrets.COSIGN_KEY}}
+          DOCKER_USERNAME: ${{secrets.DOCKER_USERNAME}}
+          DOCKER_PASSWORD: ${{secrets.DOCKER_PASSWORD}}
+          IMAGE: fresh-rss
+          MTR: mtr.devops.telekom.de
+          REPO: mcsps/fresh-rss
+      - name: Login Build Push Python
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker login -u="${DOCKER_USERNAME}" -p="${DOCKER_PASSWORD}" ${MTR}
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          mkdir tmp; cd tmp
+          docker build -t ghcr.io/${{ github.repository_owner }}/${IMAGE}/${IMAGE}:${VERSION} -f ../Docker/Dockerfile-python .
+          docker push ghcr.io/${{ github.repository_owner }}/${IMAGE}/${IMAGE}:${VERSION}
+          docker tag ghcr.io/${{ github.repository_owner }}/${IMAGE}/${IMAGE}:${VERSION} ${MTR}/${REPO}:${VERSION}
+          docker push ${MTR}/${REPO}:${VERSION}
+          cosign sign --key env://COSIGN_KEY --tlog-upload=false ${MTR}/${REPO}:${VERSION}
+          cosign sign --key env://COSIGN_KEY --tlog-upload=false ghcr.io/${{ github.repository_owner }}/${IMAGE}/${IMAGE}:${VERSION}
+        env:
+          COSIGN_KEY: ${{secrets.COSIGN_KEY}}
+          DOCKER_USERNAME: ${{secrets.DOCKER_USERNAME}}
+          DOCKER_PASSWORD: ${{secrets.DOCKER_PASSWORD}}
+          IMAGE: python-curl
+          MTR: mtr.devops.telekom.de
+          REPO: mcsps/python-curl
