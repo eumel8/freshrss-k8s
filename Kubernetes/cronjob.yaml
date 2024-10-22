@@ -1,0 +1,65 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    job-name: rss-job
+  name: rss-job
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 10
+  successfulJobsHistoryLimit: 0
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - image: mtr.devops.telekom.de/mcsps/python-curl:0.0.1
+            imagePullPolicy: IfNotPresent
+            name: rss-job
+            #env:
+            #- name: https_proxy
+            #  value: "10.10.10.10:8080"
+            command: ["sh","-c"]
+            args: ["/sidecar/run.sh"]
+            volumeMounts:
+            - name: rss-app
+              mountPath: /data
+            - name: rss-job
+              mountPath: /sidecar
+            - name: slack-py
+              mountPath: /slack
+            resources:
+              limits:
+                cpu: 1000m
+                memory: 1024Mi
+              requests:
+                cpu: 100m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              privileged: false
+              readOnlyRootFilesystem: true
+              runAsUser: 33
+              runAsGroup: 33
+          securityContext:
+            fsGroup: 33
+            supplementalGroups:
+            - 33
+          volumes:
+          - name: rss-app
+            persistentVolumeClaim:
+              claimName: rss-app
+          - name: rss-job
+            secret:
+              secretName: rss-job
+              defaultMode: 0777
+          - name: slack-py
+            configMap:
+              defaultMode: 0755
+              name: rss-job

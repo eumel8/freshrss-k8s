@@ -1,0 +1,61 @@
+---
+apiVersion: v1
+data:
+  slack.py: |
+    import json
+    from datetime import datetime
+    import xml.etree.ElementTree as ET
+    import uuid
+    # 
+    def furnish_unique_id():
+        # Generate a unique ID for the feed
+        return str(uuid.uuid4())
+    # 
+    # Load the data from the JSON file
+    with open('/data/p/slack/slack.json') as f:
+        data = json.load(f)
+    # 
+    # Create the root element for the Atom feed
+    feed = ET.Element("feed", xmlns="http://www.w3.org/2005/Atom")
+    # 
+    # Add title, link, and subtitle
+    title = ET.SubElement(feed, "title")
+    title.text = "Slack Channel Feed"
+    # 
+    link = ET.SubElement(feed, "link", href="https://slack.com")
+    subtitle = ET.SubElement(feed, "subtitle")
+    subtitle.text = "Feed of messages from a Slack channel"
+    # 
+    # Generate a unique ID for the feed
+    feed_id = ET.SubElement(feed, "id")
+    feed_id.text = furnish_unique_id()
+    # 
+    # Process each message and add it to the Atom feed
+    for message in data['messages']:
+        entry = ET.SubElement(feed, "entry")
+        content = message.get('text', 'No text available')
+        title_entry  = content[:32]
+        # Title for the entry
+        entry_title = ET.SubElement(entry, "title")
+        entry_title.text = f"Casm {title_entry}"
+        # Unique ID for the entry
+        entry_id = ET.SubElement(entry, "id")
+        entry_id.text = str(uuid.uuid4())  # Generate a unique ID for each message
+        # Link for the entry
+        entry_link = ET.SubElement(entry, "link", href="https://casm-web.telekom.de/")  # Change as needed
+        # Content of the entry
+        entry_content = ET.SubElement(entry, "content", type="text")
+        entry_content.text = content
+        # Published date
+        pub_date = ET.SubElement(entry, "updated")
+        pub_date.text = datetime.fromtimestamp(float(message['ts'])).isoformat()
+    # Generate the XML tree and write to a file
+    tree = ET.ElementTree(feed)
+    with open('/data/p/slack/atom_feed.xml', 'wb') as f:
+        tree.write(f, encoding='utf-8', xml_declaration=True)
+    print("Strict Atom XML feed created: atom_feed.xml")
+kind: ConfigMap
+metadata:
+  labels:
+    app: rss-job
+  name: rss-job

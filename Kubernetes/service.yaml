@@ -1,0 +1,12 @@
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: rss-app
+  namespace: fresh-rss
+spec:
+  selector:
+    app: rss-app
+  ports:
+    - port: 80
+      targetPort: 8080

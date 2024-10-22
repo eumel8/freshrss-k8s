@@ -29,7 +29,7 @@ Create a namespace on the target cluster (tested Kubernetes 1.29.4)
 kubectl create namespace fresh-rss
 ```
 
-Create a secret based on your needs (skip OIDC keys or set `OIDC_ENABLED=0`.
+Create a secret based on your needs (skip OIDC keys or set `OIDC_ENABLED=0`).
 
 Assume you have a Keycloak instance with a realm `cloud` and a group `devops` which use the `REMOTE_USER devops`. This user can be the admin user from the FreshRSS installation before you switch to `REMOTE_USER` authentification in FreshRSS:
 
@@ -52,6 +52,21 @@ You can create `create-secret.sh` with the content above and apply this with
 
 ```bash
 sh create-secret.sh | kubectl apply -f -
+```
+
+Create PVC (review StorageClass), Deployment, Service:
+
+```bash
+kubectl -n fresh-rss apply -f Kubernetes/pvc.yaml
+kubectl -n fresh-rss apply -f Kubernetes/deployment.yaml
+kubectl -n fresh-rss apply -f Kubernetes/service.yaml
+```
+
+(optional) Create Ingress/Certificate. Example files for ingress-nginx and cert-manager with existing ClusterIssuer:
+
+```bash
+kubectl -n fresh-rss apply -f Kubernetes/ingress.yaml
+kubectl -n fresh-rss apply -f Kubernetes/certificate.yaml
 ```
 
 ## Keycloak
@@ -171,6 +186,37 @@ Example snippet of a Keycloak client:
 
 - [FreshRSS OpenID Connect](https://freshrss.github.io/FreshRSS/en/admins/16_OpenID-Connect.html)
 - [Apach OIDC modul](https://auth.docs.cern.ch/user-documentation/oidc/apache/)
+
+## Slack2RSS-reader
+
+Create a Slack app, invite the app into a channel. This script fetch conversation from the channel
+
+run.sh:
+
+```bash
+#!/bin/sh
+if [ ! -d '/data/p/slack' ]; then
+        mkdir -p /data/p/slack
+fi
+curl -q -k -X GET 'https://slack.com/api/conversations.history?channel=XXXXX' \
+-H 'Authorization: Bearer xxxxxxxxxxxxxxxxxxxxxxx' \
+-H 'Content-Type: application/json' -o /data/p/slack/slack.json
+
+python /slack/slack.py && exit 0
+```
+
+Create a secret based on this script:
+
+```bash
+kubectl -n fresh-rss create secret generic rss-job --dry-run=client -o yaml --from-file run.sh 
+```
+
+Create Configmap/Cronjob:
+
+```bash
+kubectl -n fresh-rss apply -f Kubernetes/configmap.yaml
+kubectl -n fresh-rss apply -f Kubernetes/cronjob.yaml
+```
 
 ## Credits
 

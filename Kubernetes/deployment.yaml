@@ -1,0 +1,117 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rss-app
+spec:
+  selector:
+    matchLabels:
+      app: rss-app
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: rss-app
+    spec:
+      containers:
+      - name: rss-app
+        image: mtr.devops.telekom.de/mcsps/fresh-rss:0.0.1
+        imagePullPolicy: Always
+        env:
+        - name: OIDC_CLAIM
+          valueFrom:
+            secretKeyRef:
+              name: rss-app
+              key: OIDC_CLAIM
+        - name: OIDC_DEFAULT_URL
+          valueFrom:
+            secretKeyRef:
+              name: rss-app
+              key: OIDC_DEFAULT_URL
+        - name: OIDC_ENABLED
+          valueFrom:
+            secretKeyRef:
+              name: rss-app
+              key: OIDC_ENABLED
+        - name: OIDC_PROVIDER_METADATA_URL
+          valueFrom:
+            secretKeyRef:
+              name: rss-app
+              key: OIDC_PROVIDER_METADATA_URL
+        - name: OIDC_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: rss-app
+              key: OIDC_CLIENT_SECRET
+        - name: OIDC_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: rss-app
+              key: OIDC_CLIENT_ID
+        - name: OIDC_REMOTE_USER_CLAIM
+          valueFrom:
+            secretKeyRef:
+              name: rss-app
+              key: OIDC_REMOTE_USER_CLAIM
+        - name: OIDC_CLIENT_CRYPTO_KEY
+          valueFrom:
+            secretKeyRef:
+              name: rss-app
+              key: OIDC_CLIENT_CRYPTO_KEY
+        - name: OIDC_X_FORWARDED_HEADERS
+          valueFrom:
+            secretKeyRef:
+              name: rss-app
+              key: OIDC_X_FORWARDED_HEADERS
+        - name: OIDC_SCOPES
+          valueFrom:
+            secretKeyRef:
+              name: rss-app
+              key: OIDC_SCOPES
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1024Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsUser: 33
+          runAsGroup: 33
+        stdin: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/www/FreshRSS
+          name: rss-app
+        - mountPath: /var/run/apache2
+          name: apache-run
+        - mountPath: /var/lib/php/sessions
+          name: php-sessions
+        - mountPath: /tmp
+          name: tmp
+      restartPolicy: Always
+      securityContext:
+        fsGroup: 33
+        supplementalGroups:
+        - 33
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: rss-app
+          persistentVolumeClaim:
+            claimName: rss-app
+        - name: apache-run
+          emptyDir: {}
+        - name: php-sessions
+          emptyDir: {}
+        - name: tmp
+          emptyDir:
+            medium: Memory

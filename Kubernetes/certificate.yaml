@@ -1,0 +1,12 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: rss-app
+spec:
+  dnsNames:
+  - rss-app.example.com
+  issuerRef:
+    kind: ClusterIssuer
+    name: devops-production
+  secretName: rss-app-server-cert

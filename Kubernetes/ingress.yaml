@@ -1,0 +1,24 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+  name: rss-app
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: rss-app.example.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: rss-app
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - rss-app.example.com
+    secretName: rss-app-tls-secret
