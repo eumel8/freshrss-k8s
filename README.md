@@ -69,6 +69,14 @@ kubectl -n fresh-rss apply -f Kubernetes/ingress.yaml
 kubectl -n fresh-rss apply -f Kubernetes/certificate.yaml
 ```
 
+## Sync
+
+Call a sync script periodically to refresh all RSS feeds automatically:
+
+```bash
+kubectl -n fresh-rss apply -f Kubernetes/sync.yaml
+```
+
 ## Keycloak
 
 Example snippet of a Keycloak client:

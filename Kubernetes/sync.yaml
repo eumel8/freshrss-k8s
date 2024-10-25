@@ -1,0 +1,66 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    job-name: rss-sync
+  name: rss-sync
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 10
+  successfulJobsHistoryLimit: 0
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - image: mtr.devops.telekom.de/mcsps/fresh-rss:0.0.1
+            imagePullPolicy: IfNotPresent
+            name: rss-sync
+            env:
+            #- name: https_proxy
+            #  value: "10.10.10.10:8080"
+            command: ["sh","-c"]
+            args: ["php /var/www/FreshRSS/app/actualize_script.php"]
+            volumeMounts:
+            - mountPath: /var/www/FreshRSS
+              name: rss-app
+            - mountPath: /var/run/apache2
+              name: apache-run
+            - mountPath: /var/lib/php/sessions
+              name: php-sessions
+            - mountPath: /tmp
+              name: tmp
+            resources:
+              limits:
+                cpu: 1000m
+                memory: 1024Mi
+              requests:
+                cpu: 100m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              privileged: false
+              readOnlyRootFilesystem: true
+              runAsUser: 33
+              runAsGroup: 33
+          securityContext:
+            fsGroup: 33
+            supplementalGroups:
+            - 33
+          volumes:
+          - name: rss-app
+            persistentVolumeClaim:
+              claimName: rss-app
+          - name: apache-run
+            emptyDir: {}
+          - name: php-sessions
+            emptyDir: {}
+          - name: tmp
+            emptyDir:
+              medium: Memory
