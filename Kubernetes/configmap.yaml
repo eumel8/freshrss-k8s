@@ -40,7 +40,7 @@ data:
         entry_title.text = f"Casm {title_entry}"
         # Unique ID for the entry
         entry_id = ET.SubElement(entry, "id")
-        entry_id.text = str(uuid.uuid4())  # Generate a unique ID for each message
+        entry_id.text = datetime.fromtimestamp(float(message['ts'])).isoformat() # Generate a unique ID from the message ts
         # Link for the entry
         entry_link = ET.SubElement(entry, "link", href="https://casm-web.telekom.de/")  # Change as needed
         # Content of the entry
