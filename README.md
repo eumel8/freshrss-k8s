@@ -210,7 +210,11 @@ curl -q -k -X GET 'https://slack.com/api/conversations.history?channel=XXXXX' \
 -H 'Authorization: Bearer xxxxxxxxxxxxxxxxxxxxxxx' \
 -H 'Content-Type: application/json' -o /data/p/slack/slack.json
 
+GIT_TOKEN=xxxxxx
+#GIT_REPO=https://gitlab.com/my/repo
 python /slack/slack.py && exit 0
+python /slack/gitlog-json.py && exit 0
+python /slack/gitlog-xml.py && exit 0
 ```
 
 Create a secret based on this script:

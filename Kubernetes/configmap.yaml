@@ -54,6 +54,155 @@ data:
     with open('/data/p/slack/atom_feed.xml', 'wb') as f:
         tree.write(f, encoding='utf-8', xml_declaration=True)
     print("Strict Atom XML feed created: atom_feed.xml")
+  gitlog-json.py: |
+    import json
+    import os
+    import subprocess
+    
+    # Define the repository URL and the local directory where it should be cloned
+    repo_url = "https://github.com/eumel8/logging-operator.git"
+    local_dir = "/data/p/git/repo"
+    
+    repo_url = os.getenv("GIT_REPO")
+    if not repo_url:
+        raise: "GIT_REPO not set"
+
+    token = os.getenv("GIT_TOKEN")
+    if token:
+        auth_repo_url = repo_url.replace("https://", f"https://{token}@")
+    
+    
+    # Check if the directory exists
+    if not os.path.exists(local_dir):
+        print(f"Directory '{local_dir}' does not exist. Cloning the repository...")
+        subprocess.run(["git", "clone", repo_url, local_dir], check=True)
+    else:
+        print(f"Directory '{local_dir}' exists. Pulling the latest changes...")
+        subprocess.run(["git", "-C", local_dir, "pull"], check=True)
+    
+    # Proceed with your git log processing
+    log_command = [
+        "git", "-C", local_dir, "log", "-n", "10",
+        "--pretty=format:{\"commit\": \"%H\", \"author\": \"%an\", \"date\": \"%ad\", \"message\": \"%s\"},",
+        "--name-status"
+    ]
+    output = subprocess.check_output(log_command, text=True)
+    
+    # Parse the output (reuse the parsing logic from earlier)
+    entries = output.strip().split("\n")
+    logs = []
+    current_log = None
+    
+    for line in entries:
+        line = line.strip()
+        if line.startswith("{") and line.endswith("},"):
+            if current_log:
+                logs.append(current_log)
+            current_log = json.loads(line[:-1])  # Remove trailing comma
+            current_log["changes"] = []
+        elif line.startswith("{") and line.endswith("}"):
+            if current_log:
+                logs.append(current_log)
+            current_log = json.loads(line)
+            current_log["changes"] = []
+        elif line and not line.startswith("{"):
+            action, file = line.split("\t", 1)
+            current_log["changes"].append({
+                "action": "create" if action == "A" else "delete" if action == "D" else "modify",
+                "file": file
+            })
+    
+    if current_log:
+        logs.append(current_log)
+    
+    # Print the JSON
+    # print(json.dumps(logs, indent=2))
+    with open('/data/p/git/git_feed.json', 'wb') as f:
+        logs.write(f)
+  gitlog-xml.py: |
+    import os
+    import subprocess
+    import xml.etree.ElementTree as ET  # For XML generation
+    
+    # Define the repository and the local directory
+    repo_url = "https://github.com/eumel8/logging-operator.git"
+    local_dir = "/data/p/git/repo"
+
+    repo_url = os.getenv("GIT_REPO")
+    if not repo_url:
+        raise: "GIT_REPO not set"
+    
+    # Check if the environment variable is set
+    token = os.getenv("GIT_TOKEN")
+    if not token:
+        raise EnvironmentError("The environment variable 'GIT_TOKEN' is not set. Please set it to proceed.")
+    
+    # Modify the repository URL to include the token
+    auth_repo_url = repo_url.replace("https://", f"https://{token}@")
+    
+    # Check if the directory exists
+    if not os.path.exists(local_dir):
+        print(f"Directory '{local_dir}' does not exist. Cloning the repository...")
+        subprocess.run(["git", "clone", auth_repo_url, local_dir], check=True)
+    else:
+        print(f"Directory '{local_dir}' exists. Pulling the latest changes...")
+        subprocess.run(["git", "-C", local_dir, "pull"], check=True)
+    
+    # Run the git log command
+    log_command = [
+        "git", "-C", local_dir, "log", "-n", "10",
+        "--pretty=format:{\"commit\": \"%H\", \"author\": \"%an\", \"date\": \"%ad\", \"message\": \"%s\"},",
+        "--name-status"
+    ]
+    output = subprocess.check_output(log_command, text=True)
+    
+    # Parse the output
+    entries = output.strip().split("\n")
+    logs = []
+    current_log = None
+    
+    for line in entries:
+        line = line.strip()
+        if line.startswith("{") and line.endswith("},"):
+            if current_log:
+                logs.append(current_log)
+            current_log = eval(line[:-1])  # Remove trailing comma and parse as a dictionary
+            current_log["changes"] = []
+        elif line.startswith("{") and line.endswith("}"):
+            if current_log:
+                logs.append(current_log)
+            current_log = eval(line)  # Parse as a dictionary
+            current_log["changes"] = []
+        elif line and not line.startswith("{"):  # File changes
+            action, file = line.split("\t", 1)
+            current_log["changes"].append({
+                "action": "create" if action == "A" else "delete" if action == "D" else "modify",
+                "file": file
+            })
+    
+    if current_log:
+        logs.append(current_log)
+    
+    # Convert the logs to XML
+    root = ET.Element("logs")
+    for log in logs:
+        log_elem = ET.SubElement(root, "log")
+        ET.SubElement(log_elem, "commit").text = log["commit"]
+        ET.SubElement(log_elem, "author").text = log["author"]
+        ET.SubElement(log_elem, "date").text = log["date"]
+        ET.SubElement(log_elem, "message").text = log["message"]
+    
+        changes_elem = ET.SubElement(log_elem, "changes")
+        for change in log["changes"]:
+            change_elem = ET.SubElement(changes_elem, "change")
+            ET.SubElement(change_elem, "action").text = change["action"]
+            ET.SubElement(change_elem, "file").text = change["file"]
+    
+    # Convert the XML tree to a string and print it
+    xml_output = ET.tostring(root, encoding="unicode", method="xml")
+    # print(xml_output)
+    with open('/data/p/git/git_feed.xml', 'wb') as f:
+        xml_output.write(f, encoding='utf-8', xml_declaration=True)
 kind: ConfigMap
 metadata:
   labels:
