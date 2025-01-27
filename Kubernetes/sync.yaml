@@ -16,7 +16,7 @@ spec:
         spec:
           restartPolicy: Never
           containers:
-          - image: mtr.devops.telekom.de/mcsps/fresh-rss:0.0.1
+          - image: mtr.devops.telekom.de/mcsps/fresh-rss:0.0.2
             imagePullPolicy: IfNotPresent
             name: rss-sync
             env:

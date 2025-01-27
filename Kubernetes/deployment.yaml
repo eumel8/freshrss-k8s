@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: rss-app
-        image: mtr.devops.telekom.de/mcsps/fresh-rss:0.0.1
+        image: mtr.devops.telekom.de/mcsps/fresh-rss:0.0.2
         imagePullPolicy: Always
         env:
         - name: OIDC_CLAIM

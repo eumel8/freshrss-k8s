@@ -23,7 +23,7 @@ spec:
                   topologyKey: kubernetes.io/hostname
           restartPolicy: Never
           containers:
-          - image: mtr.devops.telekom.de/mcsps/python-curl:0.0.1
+          - image: mtr.devops.telekom.de/mcsps/python-curl:0.0.2
             imagePullPolicy: IfNotPresent
             name: rss-job
             #env:
