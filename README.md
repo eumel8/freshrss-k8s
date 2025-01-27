@@ -206,11 +206,19 @@ run.sh:
 if [ ! -d '/data/p/slack' ]; then
         mkdir -p /data/p/slack
 fi
+if [ ! -d '/data/p/git' ]; then
+        mkdir -p /data/p/git
+fi
+
 curl -q -k -X GET 'https://slack.com/api/conversations.history?channel=XXXXX' \
 -H 'Authorization: Bearer xxxxxxxxxxxxxxxxxxxxxxx' \
 -H 'Content-Type: application/json' -o /data/p/slack/slack.json
 
+GIT_TOKEN=xxxxxx
+#GIT_REPO=https://gitlab.com/my/repo
 python /slack/slack.py && exit 0
+python /slack/gitlog-json.py && exit 0
+python /slack/gitlog-xml.py && exit 0
 ```
 
 Create a secret based on this script:
@@ -225,6 +233,20 @@ Create Configmap/Cronjob:
 kubectl -n fresh-rss apply -f Kubernetes/configmap.yaml
 kubectl -n fresh-rss apply -f Kubernetes/cronjob.yaml
 ```
+
+## Git2RSS-Reader
+
+Services like Gitlab provide an RSS-Feed per project to provide updates aka commits on that repo.
+Not included are deep inspection which files are created, modified, or deleted. Here coms the Git2RSS-Reader.
+
+Configure `GIT_REPO` and `GIT_TOKEN` like above (token has repo-read permissions) and let execute the 2 gitlog python scripts in the cron. The output stored in the `p/git` repository
+
+Access the raw data:
+
+* https://<fress-rss-url/git/git_feed.json
+* https://<fress-rss-url/git/git_feed.xml
+* https://<fress-rss-url/slack/atom_feed.xml
+* https://<fress-rss-url/slack/slack.json
 
 ## Credits
 
