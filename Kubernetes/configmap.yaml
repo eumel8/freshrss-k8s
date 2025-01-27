@@ -57,36 +57,58 @@ data:
   gitlog-json.py: |
     import json
     import os
+    import re
     import subprocess
     
     # Define the repository URL and the local directory where it should be cloned
-    repo_url = "https://github.com/eumel8/logging-operator.git"
     local_dir = "/data/p/git/repo"
     
     repo_url = os.getenv("GIT_REPO")
-    if not repo_url:
-        raise: "GIT_REPO not set"
+    if repo_url is None:
+        raise "GIT_REPO not set"
 
     token = os.getenv("GIT_TOKEN")
     if token:
-        auth_repo_url = repo_url.replace("https://", f"https://{token}@")
-    
-    
+        repo_url = repo_url.replace("https://", f"https://oauth2:{token}@")
+
     # Check if the directory exists
     if not os.path.exists(local_dir):
         print(f"Directory '{local_dir}' does not exist. Cloning the repository...")
-        subprocess.run(["git", "clone", repo_url, local_dir], check=True)
+        subprocess.run(["git", "clone", "--depth=500", "--single-branch", "--no-checkout", repo_url, local_dir], check=True)
     else:
         print(f"Directory '{local_dir}' exists. Pulling the latest changes...")
-        subprocess.run(["git", "-C", local_dir, "pull"], check=True)
+        subprocess.run(["git", "-C", local_dir, "fetch", "origin", "main"], check=True)
     
     # Proceed with your git log processing
     log_command = [
-        "git", "-C", local_dir, "log", "-n", "10",
+        "git", "--no-pager", "-C", local_dir, "log", "-n", "1000",
         "--pretty=format:{\"commit\": \"%H\", \"author\": \"%an\", \"date\": \"%ad\", \"message\": \"%s\"},",
         "--name-status"
     ]
     output = subprocess.check_output(log_command, text=True)
+
+    def preprocess_string(input_string):
+        pattern = r'"commit":\s*"([^"]+)".*"author":\s*"([^"]+)".*"date":\s*"([^"]+)".*"message":\s*"([^"]+)"'
+        match = re.search(pattern, input_string)
+
+        if match:
+            commit = match.group(1)
+            author = match.group(2)
+            date = match.group(3)
+            message = match.group(4)
+
+            sanitized_message = re.sub(r'[^a-zA-Z0-9-/\s]', ' ', message)
+            result_dict = {
+                "commit": commit,
+                "author": author,
+                "date": date,
+                "message": sanitized_message
+            }
+            json_clean = json.dumps(result_dict, indent=4)
+            return json_clean
+
+        return None
+    
     
     # Parse the output (reuse the parsing logic from earlier)
     entries = output.strip().split("\n")
@@ -98,7 +120,8 @@ data:
         if line.startswith("{") and line.endswith("},"):
             if current_log:
                 logs.append(current_log)
-            current_log = json.loads(line[:-1])  # Remove trailing comma
+            fixed_line = preprocess_string(line)
+            current_log = json.loads(fixed_line)
             current_log["changes"] = []
         elif line.startswith("{") and line.endswith("}"):
             if current_log:
@@ -117,94 +140,163 @@ data:
     
     # Print the JSON
     # print(json.dumps(logs, indent=2))
-    with open('/data/p/git/git_feed.json', 'wb') as f:
-        logs.write(f)
+    with open('/data/p/git/git_feed.json', 'w') as f:
+        json.dump(logs, f, indent=2)
   gitlog-xml.py: |
     import os
+    import re
+    import json
     import subprocess
     import xml.etree.ElementTree as ET  # For XML generation
+    from datetime import datetime
     
     # Define the repository and the local directory
-    repo_url = "https://github.com/eumel8/logging-operator.git"
     local_dir = "/data/p/git/repo"
 
     repo_url = os.getenv("GIT_REPO")
-    if not repo_url:
-        raise: "GIT_REPO not set"
+    if repo_url is None:
+        raise "GIT_REPO not set"
     
     # Check if the environment variable is set
     token = os.getenv("GIT_TOKEN")
-    if not token:
-        raise EnvironmentError("The environment variable 'GIT_TOKEN' is not set. Please set it to proceed.")
-    
-    # Modify the repository URL to include the token
-    auth_repo_url = repo_url.replace("https://", f"https://{token}@")
+    if token:
+    	repo_url = repo_url.replace("https://", f"https://oauth2:{token}@")
     
     # Check if the directory exists
     if not os.path.exists(local_dir):
         print(f"Directory '{local_dir}' does not exist. Cloning the repository...")
-        subprocess.run(["git", "clone", auth_repo_url, local_dir], check=True)
+        subprocess.run(["git", "clone", "--depth=500", "--single-branch", "--no-checkout", repo_url, local_dir], check=True)
     else:
         print(f"Directory '{local_dir}' exists. Pulling the latest changes...")
-        subprocess.run(["git", "-C", local_dir, "pull"], check=True)
+        subprocess.run(["git", "-C", local_dir, "fetch", "origin", "main"], check=True)
     
     # Run the git log command
     log_command = [
-        "git", "-C", local_dir, "log", "-n", "10",
+        "git", "--no-pager", "-C", local_dir, "log", "-n", "1000",
         "--pretty=format:{\"commit\": \"%H\", \"author\": \"%an\", \"date\": \"%ad\", \"message\": \"%s\"},",
         "--name-status"
     ]
     output = subprocess.check_output(log_command, text=True)
+
+    # Function to preprocess the string, sanitizing the message field
+    def preprocess_string(input_string):
+        pattern = r'"commit":\s*"([^"]+)".*"author":\s*"([^"]+)".*"date":\s*"([^"]+)".*"message":\s*"([^"]+)"'
+        match = re.search(pattern, input_string)
     
-    # Parse the output
+        if match:
+            commit = match.group(1)
+            author = match.group(2)
+            date = match.group(3)
+            message = match.group(4)
+    
+            # Sanitize the message by replacing non-alphanumeric characters with whitespace
+            sanitized_message = re.sub(r'[^a-zA-Z0-9-/\s]', ' ', message)
+    
+            result_dict = {
+                "commit": commit,
+                "author": author,
+                "date": date,
+                "message": sanitized_message
+            }
+    
+            # Return the JSON string representation of the log entry
+            json_clean = json.dumps(result_dict, indent=4)
+            return json_clean
+    
+        return None
+    
+    # Split the git output by line breaks
     entries = output.strip().split("\n")
     logs = []
     current_log = None
     
+    # Process each line from the output
     for line in entries:
         line = line.strip()
+    
+        # Check if the line looks like a JSON entry (commit, author, date, message)
         if line.startswith("{") and line.endswith("},"):
             if current_log:
-                logs.append(current_log)
-            current_log = eval(line[:-1])  # Remove trailing comma and parse as a dictionary
-            current_log["changes"] = []
+                logs.append(current_log)  # Save the current log
+            fixed_line = preprocess_string(line)
+    
+            if fixed_line:
+                # Safely load the dictionary using json.loads() instead of eval
+                current_log = json.loads(fixed_line)
+                current_log["changes"] = []
         elif line.startswith("{") and line.endswith("}"):
             if current_log:
-                logs.append(current_log)
-            current_log = eval(line)  # Parse as a dictionary
+                logs.append(current_log)  # Save the current log
+            # Process the last log entry (incomplete json entry without a trailing comma)
+            current_log = json.loads(line)  # Parse as a dictionary
             current_log["changes"] = []
-        elif line and not line.startswith("{"):  # File changes
-            action, file = line.split("\t", 1)
-            current_log["changes"].append({
-                "action": "create" if action == "A" else "delete" if action == "D" else "modify",
-                "file": file
-            })
+        elif line and not line.startswith("{"):  # Process file changes (not JSON)
+            try:
+                action, file = line.split("\t", 1)
+                current_log["changes"].append({
+                    "action": "create" if action == "A" else "delete" if action == "D" else "modify",
+                    "file": file
+                })
+            except ValueError:
+                pass  # Ignore lines that don't have a valid file change format
     
+    # Add the final log to the list if it exists
     if current_log:
         logs.append(current_log)
     
-    # Convert the logs to XML
-    root = ET.Element("logs")
-    for log in logs:
-        log_elem = ET.SubElement(root, "log")
-        ET.SubElement(log_elem, "commit").text = log["commit"]
-        ET.SubElement(log_elem, "author").text = log["author"]
-        ET.SubElement(log_elem, "date").text = log["date"]
-        ET.SubElement(log_elem, "message").text = log["message"]
+    # Function to create Atom XML from logs
+    def create_atom_feed(logs):
+        # Create the <feed> element
+        feed = ET.Element("feed", xmlns="http://www.w3.org/2005/Atom")
     
-        changes_elem = ET.SubElement(log_elem, "changes")
-        for change in log["changes"]:
-            change_elem = ET.SubElement(changes_elem, "change")
-            ET.SubElement(change_elem, "action").text = change["action"]
-            ET.SubElement(change_elem, "file").text = change["file"]
+        # Add feed-level metadata (you can customize these)
+        feed_title = ET.SubElement(feed, "title")
+        feed_title.text = "Git Commit Feed"
     
-    # Convert the XML tree to a string and print it
-    xml_output = ET.tostring(root, encoding="unicode", method="xml")
-    # print(xml_output)
-    with open('/data/p/git/git_feed.xml', 'wb') as f:
-        xml_output.write(f, encoding='utf-8', xml_declaration=True)
+        feed_id = ET.SubElement(feed, "id")
+        feed_id.text = "urn:uuid:1234-5678-abcdef"  # Replace with a unique ID for your feed
+    
+        feed_updated = ET.SubElement(feed, "updated")
+        feed_updated.text = datetime.utcnow().isoformat()  # Current timestamp in ISO 8601 format
+    
+        # Loop over logs and create <entry> for each commit
+        for log in logs:
+            entry = ET.SubElement(feed, "entry")
+    
+            # Add commit details to the entry
+            title = ET.SubElement(entry, "title")
+            title.text = log["commit"]  # Commit hash as title
+    
+            updated = ET.SubElement(entry, "updated")
+            updated.text = log["date"]  # Use commit date (can be formatted further if needed)
+    
+            author = ET.SubElement(entry, "author")
+            author_name = ET.SubElement(author, "name")
+            author_name.text = log["author"]  # Author name
+    
+            entry_id = ET.SubElement(entry, "id")
+            entry_id.text = f"urn:uuid:{log['commit']}"  # Use commit hash as the ID
+    
+            content = ET.SubElement(entry, "content")
+            content.text = log["message"]  # The sanitized message
+
+            link_url = repo_url.replace(".git", f"")
+            link = ET.SubElement(entry, "link", href=f"{link_url}/-/commit/{log['commit']}")
+            link.text = f"View commit {log['commit']} on Git"
+    
+        # Convert the tree into a string
+        return ET.tostring(feed, encoding="utf-8", method="xml").decode("utf-8")
+    
+    # Generate Atom Feed XML
+    atom_feed_xml = create_atom_feed(logs)
+    
+    # Print the Atom Feed XML output
+    #print(atom_feed_xml)
+    with open('/data/p/git/git_feed.xml', 'w', encoding='utf-8') as f:
+        # Write the XML content to the file
+        f.write(atom_feed_xml)
 kind: ConfigMap
 metadata:
   labels:
     app: rss-job
-  name: rss-job
+  name: rss-job2
